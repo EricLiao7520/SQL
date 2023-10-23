@@ -1,0 +1,87 @@
+/** A simple style sheet to make the display of sqlair.html to look
+  a bit more interesting */
+
+header {
+    overflow: hidden;
+    position: fixed;
+    top: 0;
+    width: 100%;
+    background: #fff;
+    border: 1px solid #ccc;
+    box-shadow: 0px 1px #555;
+}
+
+header > h1 {
+    padding-top: 25px;
+    color: green;
+}
+
+.header_spacer {
+    height: 90px;
+}
+
+body {
+    background: #eee;
+    color: #222;
+    margin: 0px;
+}
+
+input {
+    margin-left: 10px;
+    margin-bottom: 5px;
+    padding: 5px;
+    background: #fff;
+    color: black;
+    width: 80%;
+    font-family: monospace;
+    font-weight: bold;
+
+}
+
+.air_input {
+    margin: 5px;
+    margin-bottom: 10px;
+    padding: 5px;
+    border: 1px solid #aaa;
+}
+
+input:disabled {
+    border: none;
+    font-weight: normal;
+    background: #eee;
+    color: #555;
+}
+
+.error {
+    font-weight: bold;
+    color: red;
+}
+
+.message {
+    font-style: italic;
+    color: #555;
+}
+
+.air_table {
+    border-collapse: collapse;
+    border: 1px solid gray;
+}
+
+.air_table td {
+  border: 1px solid #ddd;
+  padding: 5px;
+}
+
+.air_table th {
+  border: 1px solid #ddd;
+  padding: 5px;
+  background-color: #ddeedd;
+}
+
+.air_table tr:nth-child(even){
+    background-color: #f2f2f2;
+}
+
+.air_table tr:hover {
+    background-color: #ddd;
+}

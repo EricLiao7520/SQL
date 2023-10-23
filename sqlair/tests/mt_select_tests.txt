@@ -1,0 +1,58 @@
+# first load the data files we will use as loading is not MT-safe
+"use test.csv;"
+"Loaded test.csv
+"
+"use movies_db_20.csv;"
+"Loaded movies_db_20.csv
+"
+"use airports.csv"
+"Loaded airports.csv
+"
+run 1 1
+
+# The next 5 queries are run by 5 threads
+# Test a simple select statement.
+"select title from test.csv;" 
+"title
+Jon Stewart Has Left the Building
+The Nut Job 2: Nutty by Nature
+Paperman
+Road to Guantanamo, The
+Wordplay
+5 row(s) selected.
+"
+
+# test select with multiple columns
+"select title, year from movies_db_20.csv where title like The;" 
+"title	year
+Jon Stewart Has Left the Building	2015
+All the King's Men	2006
+2 row(s) selected.
+"
+
+# test select with wildcard and an "=" condition
+"select * from test.csv where movieid = 46850;" 
+"movieid	title	year	genres	imdbid	rating	raters
+46850	Wordplay	2006	Documentary	492506	4	3
+1 row(s) selected.
+"
+
+# test select with wildcard and an "<>" condition
+"select * from test.csv where movieid <> 98491;" 
+"movieid	title	year	genres	imdbid	rating	raters
+193579	Jon Stewart Has Left the Building	2015	Documentary	5342766	3.5	1
+176389	The Nut Job 2: Nutty by Nature	2017	Adventure|Animation|Children|Comedy	3486626	2	1
+46559	Road to Guantanamo, The	2006	Drama|War	468094	3.5	1
+46850	Wordplay	2006	Documentary	492506	4	3
+4 row(s) selected.
+"
+
+# test select with another data set 
+"select name, city, country from airports.csv where name like 'Cin';"
+"name	city	country
+Cincinnati Northern Kentucky International Airport	Cincinnati	United States
+Cincinnati Municipal Airport Lunken Field	Cincinnati	United States
+2 row(s) selected.
+"
+"run" 5 10 
+

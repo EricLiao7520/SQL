@@ -1,0 +1,10 @@
+"throw me"
+"Error: Invalid sql-air command throw
+"
+run 1 1
+
+"select * from invalid_file.csv"
+"Error: The supplied stream was not good.
+"
+run 1 1
+

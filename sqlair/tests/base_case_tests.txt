@@ -1,0 +1,92 @@
+# Test a simple select statement.
+"select title from test.csv;" 
+"title
+Jon Stewart Has Left the Building
+The Nut Job 2: Nutty by Nature
+Paperman
+Road to Guantanamo, The
+Wordplay
+5 row(s) selected.
+"
+"run" 1 1
+
+# test select with multiple columns
+"select title, year, movieid from test.csv;" 
+"title	year	movieid
+Jon Stewart Has Left the Building	2015	193579
+The Nut Job 2: Nutty by Nature	2017	176389
+Paperman	2012	98491
+Road to Guantanamo, The	2006	46559
+Wordplay	2006	46850
+5 row(s) selected.
+"
+"run" 1 1
+
+# test select with wildcard
+"select * from test.csv;" 
+"movieid	title	year	genres	imdbid	rating	raters
+193579	Jon Stewart Has Left the Building	2015	Documentary	5342766	3.5	1
+176389	The Nut Job 2: Nutty by Nature	2017	Adventure|Animation|Children|Comedy	3486626	2	1
+98491	Paperman	2012	Animation|Comedy|Romance	2388725	4.375	8
+46559	Road to Guantanamo, The	2006	Drama|War	468094	3.5	1
+46850	Wordplay	2006	Documentary	492506	4	3
+5 row(s) selected.
+"
+"run" 1 1
+
+# test select with wildcard and an "=" condition
+"select * from test.csv where movieid = 46850;" 
+"movieid	title	year	genres	imdbid	rating	raters
+46850	Wordplay	2006	Documentary	492506	4	3
+1 row(s) selected.
+"
+"run" 1 1
+
+# test select with wildcard and an "<>" condition
+"select * from test.csv where movieid <> 98491;" 
+"movieid	title	year	genres	imdbid	rating	raters
+193579	Jon Stewart Has Left the Building	2015	Documentary	5342766	3.5	1
+176389	The Nut Job 2: Nutty by Nature	2017	Adventure|Animation|Children|Comedy	3486626	2	1
+46559	Road to Guantanamo, The	2006	Drama|War	468094	3.5	1
+46850	Wordplay	2006	Documentary	492506	4	3
+4 row(s) selected.
+"
+"run" 1 1
+
+# test select with wildcard and an "<>" condition
+"select * from test.csv where movieid <> 46850;" 
+"movieid	title	year	genres	imdbid	rating	raters
+193579	Jon Stewart Has Left the Building	2015	Documentary	5342766	3.5	1
+176389	The Nut Job 2: Nutty by Nature	2017	Adventure|Animation|Children|Comedy	3486626	2	1
+98491	Paperman	2012	Animation|Comedy|Romance	2388725	4.375	8
+46559	Road to Guantanamo, The	2006	Drama|War	468094	3.5	1
+4 row(s) selected.
+"
+"run" 1 1
+
+# test select with wildcard and an "like" condition
+"select title, movieid from test.csv where title like 'dpla';"
+"title	movieid
+Wordplay	46850
+1 row(s) selected.
+"
+"run" 1 1
+
+# test select with wildcard and an "like" condition
+"wait select year, movieid from test.csv where movieid like '46';"
+"year	movieid
+2006	46559
+2006	46850
+2 row(s) selected.
+"
+"run" 1 1
+
+# test select with another data set 
+"select name, city, country from airports.csv where name like 'Cin';"
+"name	city	country
+Cincinnati Northern Kentucky International Airport	Cincinnati	United States
+Cincinnati Municipal Airport Lunken Field	Cincinnati	United States
+2 row(s) selected.
+"
+"run" 1 1
+
