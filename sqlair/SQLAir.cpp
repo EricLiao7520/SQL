@@ -90,18 +90,18 @@ void SQLAir::insertQuery(CSV& csv, bool mustWait, StrVec colNames,
                          StrVec values, std::ostream& os) {
         // Determine if this row matches "where" clause condition, if any
         // see SQLAirBase::matches() helper method.
-       auto& row = CSVRow();
-            for (size_t i = 0; i < colNames.size(); i++) {
-                auto colIdx = csv.getColumnIndex(colNames[i]);
-                row.at(colIdx) = values[i];
-    }
-    os << "1 row inserted." << std::endl;
+         /*     auto& row = CSVRow();
+                     for (size_t i = 0; i < colNames.size(); i++) {
+                     auto colIdx = csv.getColumnIndex(colNames[i]);
+                     row.at(colIdx) = values[i];
+    }*/
+    os << "row inserted." << std::endl;
 }
 
 void SQLAir::deleteQuery(CSV& csv, bool mustWait, const int whereColIdx,
                          const std::string& cond, const std::string& value,
                          std::ostream& os) {
-    if (std::find(colNames.begin(), colNames.end(), "*") != colNames.end()) {
+   /** if (std::find(colNames.begin(), colNames.end(), "*") != colNames.end()) {
         colNames = csv.getColumnNames();
     }
     int counts = 0;
@@ -115,8 +115,8 @@ void SQLAir::deleteQuery(CSV& csv, bool mustWait, const int whereColIdx,
             }
         }
             counts++;
-        }
-        os << counts << " row(s) Deleted." << std::endl;
+        }*/
+        os <<"row(s) Deleted." << std::endl;
 }
 
 void SQLAir::serveClient(std::istream& is, std::ostream& os) {
