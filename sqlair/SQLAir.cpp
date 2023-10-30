@@ -17,6 +17,8 @@
 #include <tuple>
 
 #include "HTTPFile.h"
+using namespace boost::asio;
+using namespace boost::asio::ip;
 /**
  * A fixed HTTP response header that is used by the runServer method below.
  * Note that this a constant (and not a global variable)
@@ -28,133 +30,225 @@ const std::string HTTPRespHeader =
     "Content-Type: text/plain\r\n"
     "Content-Length: ";
 
+/**
+ *
+ * An helper method that print rows that has been selected.
+ *
+ * @param row the row that has been selected.
+ *
+ * @param cols The content of the row
+ *
+ * @param csv The CSV data to be used.
+ *
+ * @param[out] os The output stream to where the number of rows selected must
+ * be written -- e.g." "1 row(s) selected.\n"
+ */
+void printRow(CSVRow& row, const StrVec& cols, const CSV& csv,
+              std::ostream& os) {
+    CSVRow rowCopy;
+    {
+        std::unique_lock lock(row.rowMutex);
+        rowCopy = row;
+    }
+    std::string delim = "";
+    for (const auto& colName : cols) {
+        os << delim << rowCopy.at(csv.getColumnIndex(colName));
+        delim = "\t";
+    }
+    os << std::endl;
+}
+
+int SQLAir::selectHelper(CSV& csv, StrVec colNames, const int whereColIdx,
+                         const std::string& cond, const std::string& value,
+                         std::ostream& os) {
+    int rowCount = 0;
+    // Convert any "*" to suitable column names.
+    if (colNames.size() == 1 && colNames.front() == "*") {
+        // With a wildcard column name, we print all of the columns in CSV
+        colNames = csv.getColumnNames();
+    }
+    // Print each row that matches an optional condition.
+    for (auto& row : csv) {
+        // Determine if this row matches "where" clause condition, if any
+        // see SQLAirBase::matches() helper method.
+        bool isMatch;
+        {
+            std::unique_lock<std::mutex> lock(row.rowMutex);
+            isMatch = (whereColIdx == -1)
+                          ? true
+                          : matches(row.at(whereColIdx), cond, value);
+        }
+        if (isMatch) {
+            if (rowCount == 0) {
+                os << colNames << std::endl;
+            }
+            printRow(row, colNames, csv, os);
+            rowCount++;
+        }
+    }
+    return rowCount;
+}
+
+/*#include <functional>
+
+bool fn(const StrVec& vec, std::function<bool(const StrVec&)> lmb) {
+    return lmb(vec);
+}
+
+void SQLAir::testfunc() {
+    int whereCol = 1;
+    std::string cond = "like";
+    std::string val = "The";
+    auto testFunc = [whereCol, cond, val](const StrVec& row) {
+        return matches(row[whereCol], cond, val);
+    };
+    fn(vec, testFunc);
+}
+*/
 // API method to perform operations associated with a "select" statement
 // to print columns that match an optional condition.
 void SQLAir::selectQuery(CSV& csv, bool mustWait, StrVec colNames,
                          const int whereColIdx, const std::string& cond,
                          const std::string& value, std::ostream& os) {
     // Convert any "*" to suitable column names. See CSV::getColumnNames()
+    int rowCount = selectHelper(csv, colNames, whereColIdx, cond, value, os);
+    while (rowCount == 0 && mustWait) {
+        rowCount = selectHelper(csv, colNames, whereColIdx, cond, value, os);
+        std::unique_lock<std::mutex> lock(csv.csvMutex);
+        csv.csvCondVar.wait(lock);
+    }
+    os << rowCount << " row(s) selected." << std::endl;
+}
+
+int SQLAir::updateHelper(CSV& csv, StrVec colNames, StrVec values,
+                         const int whereColIdx, const std::string& cond,
+                         const std::string& value, std::ostream& os) {
     if (std::find(colNames.begin(), colNames.end(), "*") != colNames.end()) {
         colNames = csv.getColumnNames();
     }
-    // First print the column names.
-    int counts = 0;
-    bool printColNames = false;
-    // Print each row that matches an optional condition.
+    int rowCount = 0;
     for (auto& row : csv) {
         // Determine if this row matches "where" clause condition, if any
         // see SQLAirBase::matches() helper method.
-         std::unique_lock<std::mutex> lock(row.rowMutex);
+        std::unique_lock<std::mutex> lock(row.rowMutex);
         if (whereColIdx == -1 || matches(row.at(whereColIdx), cond, value)) {
-            if (!printColNames) {
-                os << colNames << std::endl;
-                printColNames = true;
+            for (size_t i = 0; i < colNames.size(); i++) {
+                auto colIdx = csv.getColumnIndex(colNames[i]);
+                row.at(colIdx) = values[i];
             }
-            std::string delim = "";
-            counts++;
-            for (const auto& colName : colNames) {
-                os << delim << row.at(csv.getColumnIndex(colName));
-                delim = "\t";
-            }
-            os << std::endl;
+            rowCount++;
         }
     }
-    os << counts << " row(s) selected." << std::endl;
+    if (rowCount > 0) {
+        csv.csvCondVar.notify_all();
+    }
+    return rowCount;
 }
 
 void SQLAir::updateQuery(CSV& csv, bool mustWait, StrVec colNames,
                          StrVec values, const int whereColIdx,
                          const std::string& cond, const std::string& value,
                          std::ostream& os) {
-    if (std::find(colNames.begin(), colNames.end(), "*") != colNames.end()) {
-        colNames = csv.getColumnNames();
-    }
-    int counts = 0;
-    for (auto& row : csv) {
-        // Determine if this row matches "where" clause condition, if any
-        // see SQLAirBase::matches() helper method.
-        if (whereColIdx == -1 || matches(row.at(whereColIdx), cond, value)) {
-            for (size_t i = 0; i < colNames.size(); i++) {
-                auto colIdx = csv.getColumnIndex(colNames[i]);
-                row.at(colIdx) = values[i];
-            }
-            counts++;
-        }
-    }
-    os << counts << " row(s) updated." << std::endl;
+    int rowCount =
+        updateHelper(csv, colNames, values, whereColIdx, cond, value, os);
     // Update each row that matches an optional condition.
     // throw Exp("update is not yet implemented.");
+    while (rowCount == 0 && mustWait) {
+        rowCount =
+            updateHelper(csv, colNames, values, whereColIdx, cond, value, os);
+        std::unique_lock lock(csv.csvMutex);
+        csv.csvCondVar.wait(lock);
+    }
+    os << rowCount << " row(s) updated." << std::endl;
 }
 
 void SQLAir::insertQuery(CSV& csv, bool mustWait, StrVec colNames,
                          StrVec values, std::ostream& os) {
-        // Determine if this row matches "where" clause condition, if any
-        // see SQLAirBase::matches() helper method.
-         /*     auto& row = CSVRow();
-                     for (size_t i = 0; i < colNames.size(); i++) {
-                     auto colIdx = csv.getColumnIndex(colNames[i]);
-                     row.at(colIdx) = values[i];
-    }*/
-    os << "row inserted." << std::endl;
+    CSVRow row;
+    for (int i = 0; i < csv.getColumnCount(); i++) {
+        row.push_back("");  // Add an empty value for each column
+    }
+    for (size_t i = 0; i < colNames.size(); i++) {
+        auto colIdx = csv.getColumnIndex(colNames[i]);
+        row.at(colIdx) = values[i];
+    }
+    csv.push_back(row);
+    os << "1 row inserted." << std::endl;
 }
-
 void SQLAir::deleteQuery(CSV& csv, bool mustWait, const int whereColIdx,
                          const std::string& cond, const std::string& value,
                          std::ostream& os) {
-   /** if (std::find(colNames.begin(), colNames.end(), "*") != colNames.end()) {
-        colNames = csv.getColumnNames();
-    }
     int counts = 0;
-    int colCount = csv.getColumnCount();
+    CSV newCSV;
     for (auto& row : csv) {
         // Determine if this row matches "where" clause condition, if any
         // see SQLAirBase::matches() helper method.
-        if (whereColIdx == -1 || matches(row.at(whereColIdx), cond, value)) {
-            for(int i = 0;i < colCount;i++){
-                row.at(i) = null;
-            }
-        }
+        if (whereColIdx == -1 || !matches(row.at(whereColIdx), cond, value)) {
+            newCSV.push_back(row);
             counts++;
-        }*/
-        os <<"row(s) Deleted." << std::endl;
+        }
+    }
+    csv.swap(newCSV);
+    os << counts << " row(s) Deleted." << std::endl;
 }
 
-void SQLAir::serveClient(std::istream& is, std::ostream& os) {
-    std::string line, path, str;
-    std::ostringstream strStream;
-    is >> line >> path;
-    while (std::getline(is, line) && line != "\r") {
+void SQLAir::clientThread(TcpStreamPtr client) {
+    // Extract the SQL query from the first line for processing
+    std::string req;
+    *client >> req >> req;
+    // Skip over all the HTTP request headers. Without this loop the
+    // web-server will not operate correctly with all the web-browsers
+    for (std::string hdr;
+         (std::getline(*client, hdr) && !hdr.empty() && hdr != "\r");) {
     }
-    if (path.find("/sql-air") != std::string::npos) {
-        str = path.substr(15);
-        str = Helper::url_decode(str);
+    // URL-decode the request to translate special/encoded characters
+    req = Helper::url_decode(req);
+    // Check and do the necessary processing based on type of request
+    const std::string prefix = "/sql-air?query=";
+    if (req.find(prefix) != 0) {
+        // This is request for a data file. So send the data file out.
+        *client << http::file("./" + req);
+    } else {
+        // This is a sql-air query. Let's have the helper method do the
+        // processing for us
+        std::ostringstream os;
         try {
-            SQLAirBase::process(str, strStream);
-            std::string outStr = strStream.str();
-            os << HTTPRespHeader << outStr.size() << "\r\n\r\n" << outStr;
+            std::string sql = Helper::trim(req.substr(prefix.size()));
+            if (sql.back() == ';') {
+                sql.pop_back();  // Remove trailing semicolon.
+            }
+            process(sql, os);
         } catch (const std::exception& exp) {
-            std::string str2 = "Error: ";
-            str2 += exp.what();
-            os << HTTPRespHeader << str2.size() + 1 << "\r\n\r\n" << str2;
+            os << "Error: " << exp.what() << std::endl;
         }
-    } else if (!path.empty()) {
-        os << http::file(path);
+        // Send HTTP response back to the client.
+        const std::string resp = os.str();
+        // Send response back to the client.
+        *client << HTTPRespHeader << resp.size() << "\r\n\r\n" << resp;
     }
+    numThreads.fetch_sub(1, std::memory_order_relaxed);
+    thrCond.notify_one();
 }
 // The method to have this class run as a web-server.
 void SQLAir::runServer(boost::asio::ip::tcp::acceptor& server,
                        const int maxThr) {
-    while (true) {
+    for (bool done = false; !done;) {
         // Creates garbage-collected connection on heap
-        TcpStreamPtr client =
-            std::make_shared<boost::asio::ip::tcp::iostream>();
-        server.accept(*client->rdbuf());  // wait for client to connect
-        // Now we have a I/O stream to talk to the client. Have a
-        // conversation using the protocol.
-        std::thread bgThr([this, client] { serveClient(*client, *client); });
-        bgThr.detach();  // Process transaction independently
+        TcpStreamPtr client = std::make_shared<tcp::iostream>();
+        // Wait for a client to connect
+        server.accept(*client->rdbuf());
+        // Now we have a I/O stream to talk to the client.
+        {
+            std::unique_lock lock(thrMutex);
+            thrCond.wait(lock,
+                         [maxThr, this] { return this->numThreads < maxThr; });
+            numThreads.fetch_add(1, std::memory_order_relaxed);
+        }
+        std::thread thr(&SQLAir::clientThread, this, client);
+        thr.detach();  // Run independently
     }
 }
+
 void setupDownload(const std::string& hostName, const std::string& path,
                    boost::asio::ip::tcp::iostream& data,
                    const std::string& port = "80") {
